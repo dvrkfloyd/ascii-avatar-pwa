@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ASCII Avatar PWA</title>
+<link rel="manifest" href="manifest.json" />
+<style>
+  body {
+    background: #3262c4;
+    color: white;
+    font-family: monospace;
+    font-size: 60px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    transition: transform 0.2s ease;
+  }
+  pre {
+    line-height: 1;
+    transition: text-shadow 0.2s ease;
+  }
+</style>
+</head>
+<body>
+<pre id="avatar">( ◉ ‿ ◉ )</pre>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+
+const eyesMouthPairs = [
+  ['◉', '‿'], ['◕', 'ω'], ['•', '◡'], ['✧', '▽'], ['⊙', 'o'],
+  ['ᗒ', 'ᴥ'], ['￣', 'ω'], ['☆', '▽'], ['◔', 'ᴗ'], ['⚆', '_']
+];
+let index = 0;
+let interval = 700;
+const avatarElement = document.getElementById('avatar');
+let currentMouth = '‿';
+let glowActive = false;
+
+function pulse() {
+  document.body.style.transform = 'scale(1.08)';
+  setTimeout(() => {
+    document.body.style.transform = 'scale(1)';
+  }, 100);
+}
+
+function activateGlow() {
+  avatarElement.style.textShadow = '0 0 20px white';
+  glowActive = true;
+  setTimeout(() => {
+    avatarElement.style.textShadow = 'none';
+    glowActive = false;
+  }, 200);
+}
+
+function updateFace() {
+  const [eye, mouth] = eyesMouthPairs[index];
+  avatarElement.textContent = `( ${eye} ${currentMouth} ${eye} )`;
+  pulse();
+  setTimeout(() => {
+    currentMouth = mouth;
+    avatarElement.textContent = `( ${eye} ${currentMouth} ${eye} )`;
+  }, 400);
+}
+
+function animate() {
+  updateFace();
+  index = (index + 1) % eyesMouthPairs.length;
+  setTimeout(animate, interval);
+}
+
+navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  source.connect(analyser);
+  analyser.fftSize = 256;
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  let lastPeakTime = 0;
+
+  function detectBeat() {
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      sum += dataArray[i];
+    }
+    let average = sum / bufferLength;
+    let now = Date.now();
+    if (average > 60 && now - lastPeakTime > 250) {
+      let delta = now - lastPeakTime;
+      let bpm = 60000 / delta;
+      lastPeakTime = now;
+      interval = Math.max(150, Math.min(900, 60000 / bpm));
+      if (!glowActive && average > 100) {
+        activateGlow();
+      }
+    }
+    requestAnimationFrame(detectBeat);
+  }
+
+  detectBeat();
+});
+
+animate();
+</script>
+</body>
+</html>
