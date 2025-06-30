@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ASCII Avatar PWA</title>
+<title>ASCII Avatar PWA with Idle Sad Face</title>
 <link rel="manifest" href="manifest.json" />
 <style>
   body {
@@ -41,6 +41,7 @@ let interval = 700;
 const avatarElement = document.getElementById('avatar');
 let currentMouth = '‿';
 let glowActive = false;
+let active = false;
 
 function pulse() {
   document.body.style.transform = 'scale(1.08)';
@@ -59,6 +60,10 @@ function activateGlow() {
 }
 
 function updateFace() {
+  if (!active) {
+    avatarElement.textContent = '( ◉︿◉ )'; // idle sad face during silence
+    return;
+  }
   const [eye, mouth] = eyesMouthPairs[index];
   avatarElement.textContent = `( ${eye} ${currentMouth} ${eye} )`;
   pulse();
@@ -70,7 +75,9 @@ function updateFace() {
 
 function animate() {
   updateFace();
-  index = (index + 1) % eyesMouthPairs.length;
+  if (active) {
+    index = (index + 1) % eyesMouthPairs.length;
+  }
   setTimeout(animate, interval);
 }
 
@@ -101,6 +108,9 @@ navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
       if (!glowActive && average > 100) {
         activateGlow();
       }
+      active = true;
+    } else if (average < 30) {
+      active = false;
     }
     requestAnimationFrame(detectBeat);
   }
