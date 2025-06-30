@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ASCII Avatar PWA with CRT Effects</title>
+<title>ASCII Avatar PWA with Party & Glitch</title>
 <link rel="manifest" href="manifest.json" />
 <style>
   body {
@@ -17,28 +17,35 @@
     align-items: center;
     height: 100vh;
     margin: 0;
+    overflow: hidden;
+    position: relative;
     transition: transform 0.2s ease;
     filter: contrast(1.2) brightness(1.05) saturate(0.9);
     animation: flicker 2s infinite;
-    overflow: hidden;
-    position: relative;
   }
   pre {
     line-height: 1;
     transition: text-shadow 0.2s ease;
     z-index: 2;
+    position: relative;
+  }
+  #overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 40px;
+    font-weight: bold;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 5;
   }
   body::before {
     content: "";
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: repeating-linear-gradient(
-      to bottom,
-      rgba(255,255,255,0.03),
-      rgba(255,255,255,0.03) 1px,
-      transparent 1px,
-      transparent 3px
-    );
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 1px, transparent 1px, transparent 3px);
     pointer-events: none;
     z-index: 1;
   }
@@ -52,48 +59,46 @@
     pointer-events: none;
     z-index: 3;
   }
-  @keyframes flicker {
-    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
-    20%, 22%, 24%, 55% { opacity: 0.98; }
-  }
-  @keyframes grain {
-    0% { transform: translate(0,0); }
-    10% { transform: translate(-1px,1px); }
-    20% { transform: translate(1px,-1px); }
-    30% { transform: translate(-1px,-1px); }
-    40% { transform: translate(1px,1px); }
-    50% { transform: translate(0,1px); }
-    60% { transform: translate(1px,0); }
-    70% { transform: translate(-1px,0); }
-    80% { transform: translate(0,-1px); }
-    90% { transform: translate(1px,1px); }
-    100% { transform: translate(0,0); }
-  }
+  @keyframes flicker { 0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; } 20%, 22%, 24%, 55% { opacity: 0.98; } }
+  @keyframes grain { 0% { transform: translate(0,0); } 50% { transform: translate(1px,-1px); } 100% { transform: translate(0,0); } }
 </style>
 </head>
 <body>
 <pre id="avatar">( ◉ ‿ ◉ )</pre>
+<div id="overlay"></div>
+<audio id="clickSound" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=" preload="auto"></audio>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js');
 }
 
-const eyesMouthPairs = [
-  ['◉', '‿'], ['◕', 'ω'], ['•', '◡'], ['✧', '▽'], ['⊙', 'o'],
-  ['ᗒ', 'ᴥ'], ['￣', 'ω'], ['☆', '▽'], ['◔', 'ᴗ'], ['⚆', '_']
-];
+const overlay = document.getElementById('overlay');
+const clickSound = document.getElementById('clickSound');
+const partyWords = ["BASS", "DROP", "HYPE", "BOUNCE", "VIBE", "ENERGY", "WAVE", "PULSE"];
+// <-- ZMIENIASZ TU SŁOWA OVERLAY jeśli chcesz inne -->
+
+const eyesMouthPairs = [['◉','‿'],['◕','ω'],['•','◡'],['✧','▽'],['⊙','o'],['ᗒ','ᴥ'],['￣','ω'],['☆','▽'],['◔','ᴗ'],['⚆','_']];
 let index = 0;
 let interval = 700;
 const avatarElement = document.getElementById('avatar');
 let currentMouth = '‿';
 let glowActive = false;
 let active = false;
+let idleTimeout;
 
 function pulse() {
   document.body.style.transform = 'scale(1.08)';
+  avatarElement.style.textShadow = '0 0 5px red, 0 0 10px blue';
   setTimeout(() => {
     document.body.style.transform = 'scale(1)';
-  }, 100);
+    avatarElement.style.textShadow = 'none';
+  }, 150);
+}
+
+function showOverlay(word) {
+  overlay.textContent = word;
+  overlay.style.opacity = 1;
+  setTimeout(() => { overlay.style.opacity = 0; }, 800);
 }
 
 function activateGlow() {
@@ -121,9 +126,7 @@ function updateFace() {
 
 function animate() {
   updateFace();
-  if (active) {
-    index = (index + 1) % eyesMouthPairs.length;
-  }
+  if (active) { index = (index + 1) % eyesMouthPairs.length; }
   setTimeout(animate, interval);
 }
 
@@ -137,13 +140,12 @@ navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
   const dataArray = new Uint8Array(bufferLength);
 
   let lastPeakTime = 0;
+  let silenceStart = null;
 
   function detectBeat() {
     analyser.getByteFrequencyData(dataArray);
     let sum = 0;
-    for (let i = 0; i < bufferLength; i++) {
-      sum += dataArray[i];
-    }
+    for (let i = 0; i < bufferLength; i++) { sum += dataArray[i]; }
     let average = sum / bufferLength;
     let now = Date.now();
     if (average > 60 && now - lastPeakTime > 250) {
@@ -154,8 +156,20 @@ navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
       if (!glowActive && average > 100) {
         activateGlow();
       }
+      if (average > 150) {
+        const word = partyWords[Math.floor(Math.random() * partyWords.length)];
+        showOverlay(word);
+      }
+      clickSound.play();
       active = true;
-    } else if (average < 30) {
+      clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(() => { active = false; }, 10000); // 10s ambient mode
+    } else if (average < 30 && !silenceStart) {
+      silenceStart = now;
+    } else if (average >= 30) {
+      silenceStart = null;
+    }
+    if (silenceStart && now - silenceStart > 10000) { // 10s silence
       active = false;
     }
     requestAnimationFrame(detectBeat);
