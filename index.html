@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ASCII Avatar PWA with Party & Glitch</title>
+<title>ASCII Avatar PWA with Stable Sleep Mode</title>
 <link rel="manifest" href="manifest.json" />
 <style>
   body {
@@ -75,7 +75,6 @@ if ('serviceWorker' in navigator) {
 const overlay = document.getElementById('overlay');
 const clickSound = document.getElementById('clickSound');
 const partyWords = ["BASS", "DROP", "HYPE", "BOUNCE", "VIBE", "ENERGY", "WAVE", "PULSE"];
-// <-- ZMIENIASZ TU SŁOWA OVERLAY jeśli chcesz inne -->
 
 const eyesMouthPairs = [['◉','‿'],['◕','ω'],['•','◡'],['✧','▽'],['⊙','o'],['ᗒ','ᴥ'],['￣','ω'],['☆','▽'],['◔','ᴗ'],['⚆','_']];
 let index = 0;
@@ -84,7 +83,8 @@ const avatarElement = document.getElementById('avatar');
 let currentMouth = '‿';
 let glowActive = false;
 let active = false;
-let idleTimeout;
+let silenceFrames = 0;
+const silenceThresholdFrames = 60 * 5; // 5 seconds at 60fps
 
 function pulse() {
   document.body.style.transform = 'scale(1.08)';
@@ -140,7 +140,6 @@ navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
   const dataArray = new Uint8Array(bufferLength);
 
   let lastPeakTime = 0;
-  let silenceStart = null;
 
   function detectBeat() {
     analyser.getByteFrequencyData(dataArray);
@@ -148,33 +147,28 @@ navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     for (let i = 0; i < bufferLength; i++) { sum += dataArray[i]; }
     let average = sum / bufferLength;
     let now = Date.now();
+
     if (average > 60 && now - lastPeakTime > 250) {
       let delta = now - lastPeakTime;
       let bpm = 60000 / delta;
       lastPeakTime = now;
       interval = Math.max(150, Math.min(900, 60000 / bpm));
-      if (!glowActive && average > 100) {
-        activateGlow();
-      }
+      if (!glowActive && average > 100) { activateGlow(); }
       if (average > 150) {
         const word = partyWords[Math.floor(Math.random() * partyWords.length)];
         showOverlay(word);
       }
       clickSound.play();
       active = true;
-      clearTimeout(idleTimeout);
-      idleTimeout = setTimeout(() => { active = false; }, 10000); // 10s ambient mode
-    } else if (average < 30 && !silenceStart) {
-      silenceStart = now;
-    } else if (average >= 30) {
-      silenceStart = null;
-    }
-    if (silenceStart && now - silenceStart > 10000) { // 10s silence
-      active = false;
+      silenceFrames = 0;
+    } else {
+      silenceFrames++;
+      if (silenceFrames > silenceThresholdFrames) {
+        active = false;
+      }
     }
     requestAnimationFrame(detectBeat);
   }
-
   detectBeat();
 });
 
